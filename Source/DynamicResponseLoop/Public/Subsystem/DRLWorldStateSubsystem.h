@@ -37,6 +37,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "DRL|State")
 	FGameplayTagContainer GetCurrentWorldState() const { return CurrentWorldState; }
 	
+	UFUNCTION(BlueprintCallable, Category = "DRL|Observer")
+	TArray<FActionRecord> GetCurrentRunHistory() const { return CurrentRunHistory; }
+	
 	UPROPERTY(BlueprintAssignable, Category = "DRL|Events")
 	FOnActionLoggedSignature OnActionLogged;
 	
