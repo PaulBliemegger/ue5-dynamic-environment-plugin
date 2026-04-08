@@ -35,22 +35,26 @@ void UDRLWorldStateSubsystem::SetActiveConfig(UDRLWorldStateConfig* NewConfig)
 			}
 		}
 		// PRE-INSTANTIATE ANALYZER: This removes the "NewObject" lag during evaluation
-		TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
-		if (ActiveConfig->AnalyzerClass)
+		
+		if (ActiveConfig->bEnableTelemetry)
 		{
-			ClassToUse = ActiveConfig->AnalyzerClass;
+			if (ActiveConfig->AnalyzerClass->IsValidLowLevel())
+			{
+				TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
+				ClassToUse = ActiveConfig->AnalyzerClass;
+				CachedAnalyzer = NewObject<UDRLMetricsAnalyzer>(this, ClassToUse);
+			}
 		}
-	
-		CachedAnalyzer = NewObject<UDRLMetricsAnalyzer>(this, ClassToUse);
+		
 	}
-	UE_LOG(LogTemp, Log, TEXT("DRLWorldStateSubsystem: Active Config Set - %s"), *GetNameSafe(ActiveConfig));
+	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem]: Active Config Set - %s"), *GetNameSafe(ActiveConfig));
 }
 
 void UDRLWorldStateSubsystem::Internal_LogAction(FGameplayTag ActionTag, const FInstancedStruct& Payload)
 {
 	if (!ActionTag.IsValid()) 
 	{
-		UE_LOG(LogTemp, Warning, TEXT("DRLSubsystem: Attempted to log an invalid ActionTag."));
+		UE_LOG(LogTemp, Warning, TEXT("[DRL SubSystem]: Attempted to log an invalid ActionTag."));
 		return;
 	}
 	
@@ -61,7 +65,7 @@ void UDRLWorldStateSubsystem::Internal_LogAction(FGameplayTag ActionTag, const F
 	
 	CurrentRunHistory.Add(Record);
 	
-	UE_LOG(LogTemp, Log, TEXT("[DRL System] Time: [%.2fs] | Action: %-30s | Payload: %s"), 
+	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem] Time: [%.2fs] | Action: %-30s | Payload: %s"), 
 	Record.Timestamp, 
 	*ActionTag.ToString(), 
 	*GetPayloadAsString(Payload));
@@ -124,6 +128,7 @@ void UDRLWorldStateSubsystem::UpdateWorldState()
 	}
 	
 	CurrentWorldState = NewState;
+	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem]: World State Updated - %s"), *CurrentWorldState.ToString());
 	CurrentRunHistory.Empty();
 	
 	if (!ActiveConfig->bIsControlGroup)
