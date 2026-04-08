@@ -29,12 +29,11 @@ void UDRLTelemetryProvider::LogActionAsync(const UDRLWorldStateConfig* Config, c
 {
 	if (!Config || !Config->bEnableTelemetry || !Config->bEnableLiveHeartbeat || CurrentSessionFile.IsEmpty()) return;
 
-	FString CSVLine = FString::Printf(TEXT("%s,%d,ACTION,%.2f,%s,%.2f,,,,%d,\n"),
+	FString CSVLine = FString::Printf(TEXT("%s,%d,ACTION,%.2f,%s,,,,%d,\n"),
 		*SessionID, 
 		CurrentRunNumber + 1, 
 		Record.Timestamp, 
-		*Record.ActionTag.ToString(), 
-		Record.Intensity, 
+		*Record.ActionTag.ToString(),
 		Config->bIsControlGroup ? 1 : 0);
 
 	SaveCSVLineInternalAsync(CurrentSessionFile, CSVLine);

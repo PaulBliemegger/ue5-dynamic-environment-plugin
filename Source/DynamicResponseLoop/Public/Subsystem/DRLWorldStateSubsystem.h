@@ -23,9 +23,23 @@ class DYNAMICRESPONSELOOP_API UDRLWorldStateSubsystem : public UGameInstanceSubs
 public:
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	
-	// Step 1: Called by Player/Companions during the Dungeon phase
-	UFUNCTION(BlueprintCallable, Category = "DRL|Observer")
-	void LogAction(FGameplayTag ActionTag, float Intensity = 1.0f);
+	/** * The "Master" Log function. 
+	 * Use this in C++ with templates for automatic payload wrapping.
+	 */
+	template<typename T>
+	void LogAction(FGameplayTag ActionTag, const T& PayloadData)
+	{
+		FInstancedStruct Payload;
+		Payload.InitializeAs<T>(PayloadData);
+		Internal_LogAction(ActionTag, Payload);
+	}
+	
+	/** Blueprint-compatible version */
+	UFUNCTION(BlueprintCallable, Category = "DRL | Logging", meta = (DisplayName = "Log Action (Payload)"))
+	void LogActionBP(FGameplayTag ActionTag, const FInstancedStruct& Payload) 
+	{ 
+		Internal_LogAction(ActionTag, Payload); 
+	}
 
 	// Step 2 & 3: Triggered when returning to the Hub area
 	UFUNCTION(BlueprintCallable, Category = "DRL|Brain")
@@ -69,4 +83,8 @@ private:
 	 */
 	UPROPERTY()
 	UDRLMetricsAnalyzer* CachedAnalyzer;
+	
+	void Internal_LogAction(FGameplayTag ActionTag, const FInstancedStruct& Payload);
+	
+	FString GetPayloadAsString(const FInstancedStruct& Payload) const;
 };
