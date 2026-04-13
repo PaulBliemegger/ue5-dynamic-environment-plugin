@@ -7,12 +7,13 @@
 #include "Evaluators/DRLWorldStateEvaluator.h"
 #include "Engine/World.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogDRLSubsystem, Log, All);
+
 void UDRLWorldStateSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	// Create the provider once. It lives as long as the Subsystem.
 	TelemetryProvider = NewObject<UDRLTelemetryProvider>(this);
-	TelemetryProvider->InitializeSession(ActiveConfig);
 }
 
 void UDRLWorldStateSubsystem::SetActiveConfig(UDRLWorldStateConfig* NewConfig)
@@ -34,10 +35,10 @@ void UDRLWorldStateSubsystem::SetActiveConfig(UDRLWorldStateConfig* NewConfig)
 				InstancedEvaluators.Add(NewEval);
 			}
 		}
-		// PRE-INSTANTIATE ANALYZER: This removes the "NewObject" lag during evaluation
 		
 		if (ActiveConfig->bEnableTelemetry)
 		{
+			TelemetryProvider->InitializeSession(ActiveConfig);
 			if (ActiveConfig->AnalyzerClass->IsValidLowLevel())
 			{
 				TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
@@ -47,7 +48,7 @@ void UDRLWorldStateSubsystem::SetActiveConfig(UDRLWorldStateConfig* NewConfig)
 		}
 		
 	}
-	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem]: Active Config Set - %s"), *GetNameSafe(ActiveConfig));
+	UE_LOG(LogDRLSubsystem, Log, TEXT("Active Config Set - %s"), *GetNameSafe(ActiveConfig));
 }
 
 void UDRLWorldStateSubsystem::Internal_LogAction(FGameplayTag ActionTag, const FInstancedStruct& Payload)
@@ -65,17 +66,16 @@ void UDRLWorldStateSubsystem::Internal_LogAction(FGameplayTag ActionTag, const F
 	
 	CurrentRunHistory.Add(Record);
 	
-	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem] Time: [%.2fs] | Action: %-30s | Payload: %s"), 
+	UE_LOG(LogDRLSubsystem, Log, TEXT("Time: [%.2fs] | Action: %-30s | Payload: %s"), 
 	Record.Timestamp, 
 	*ActionTag.ToString(), 
 	*GetPayloadAsString(Payload));
 	
-	/*
-	if (TelemetryProvider)
+	
+	if (ActiveConfig->bEnableTelemetry && ActiveConfig->bEnableLiveHeartbeat)
 	{
 		TelemetryProvider->LogActionAsync(ActiveConfig, Record);
 	}
-	*/
 	
 	OnActionLogged.Broadcast(Record);
 }
@@ -101,7 +101,6 @@ FString UDRLWorldStateSubsystem::GetPayloadAsString(const FInstancedStruct& Payl
 void UDRLWorldStateSubsystem::UpdateWorldState()
 {
 	if (!ActiveConfig) return;
-	
 	FGameplayTagContainer NewState = CurrentWorldState;
 	for (UDRLWorldStateEvaluator* Evaluator : InstancedEvaluators)
 	{
@@ -113,22 +112,24 @@ void UDRLWorldStateSubsystem::UpdateWorldState()
 	
 	if (ActiveConfig->bEnableTelemetry)
 	{
-		TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
-		if (ActiveConfig->AnalyzerClass)
+		
+		if (!ActiveConfig->bEnableLiveHeartbeat)
 		{
-			ClassToUse = ActiveConfig->AnalyzerClass;
+			for (const FActionRecord& Record : CurrentRunHistory)
+			{
+				TelemetryProvider->LogActionAsync(ActiveConfig, Record);
+			}
 		}
-		UDRLMetricsAnalyzer* Analyzer = NewObject<UDRLMetricsAnalyzer>(this, ClassToUse);
         
-		if (Analyzer)
+		if (CachedAnalyzer)
 		{
-			FRunMetrics Metrics = Analyzer->CalculateRunMetrics(CurrentRunHistory, CurrentWorldState);
+			FRunMetrics Metrics = CachedAnalyzer->CalculateRunMetrics(CurrentRunHistory, CurrentWorldState);
 			TelemetryProvider->LogSummaryAsync(ActiveConfig, Metrics, CurrentWorldState);
 		}
 	}
 	
 	CurrentWorldState = NewState;
-	UE_LOG(LogTemp, Log, TEXT("[DRL SubSystem]: World State Updated - %s"), *CurrentWorldState.ToString());
+	UE_LOG(LogDRLSubsystem, Log, TEXT("World State Updated - %s"), *CurrentWorldState.ToString());
 	CurrentRunHistory.Empty();
 	
 	if (!ActiveConfig->bIsControlGroup)

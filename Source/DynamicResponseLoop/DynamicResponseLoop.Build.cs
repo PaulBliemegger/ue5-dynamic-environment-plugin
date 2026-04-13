@@ -28,6 +28,9 @@ public class DynamicResponseLoop : ModuleRules
 				"Core",
 				// ... add other public dependencies that you statically link with here ...
 				"GameplayTags",
+				"Json",
+				"JsonUtilities",
+				"StructUtils"
 			}
 			);
 			

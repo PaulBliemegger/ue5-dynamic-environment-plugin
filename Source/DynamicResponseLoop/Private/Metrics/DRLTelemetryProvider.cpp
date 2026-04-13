@@ -2,6 +2,8 @@
 
 
 #include "Metrics/DRLTelemetryProvider.h"
+
+#include "JsonObjectConverter.h"
 #include "Async/Async.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
@@ -22,18 +24,46 @@ void UDRLTelemetryProvider::InitializeSession(const UDRLWorldStateConfig* Config
 	SessionID = FString::Printf(TEXT("%s_%s"), *Timestamp, *MachineName);
 	CurrentSessionFile = FPaths::ProjectSavedDir() + TEXT("DRL_Telemetry/Session_") + SessionID + TEXT(".csv");
 	
+	// This will create the file and write the header on the first write
+	SaveCSVLineInternalAsync(CurrentSessionFile, TEXT("")); 
+	
 	UE_LOG(LogTemp, Log, TEXT("DRLTelemetryProvider: Initialized new telemetry session with file: %s"), *CurrentSessionFile);
 }
 
 void UDRLTelemetryProvider::LogActionAsync(const UDRLWorldStateConfig* Config, const FActionRecord& Record)
 {
-	if (!Config || !Config->bEnableTelemetry || !Config->bEnableLiveHeartbeat || CurrentSessionFile.IsEmpty()) return;
+	if (!Config || CurrentSessionFile.IsEmpty())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("DRLTelemetryProvider: Logging action failed: Config not set or Session File is empty %s"), *CurrentSessionFile);
+		return;
+	}
+	
+	FString JsonOutput = TEXT("{}"); // Default to empty JSON object
 
-	FString CSVLine = FString::Printf(TEXT("%s,%d,ACTION,%.2f,%s,,,,%d,\n"),
+	if (Record.Payload.IsValid()) 
+	{
+		const UScriptStruct* ScriptStruct = Record.Payload.GetScriptStruct();
+		const uint8* StructMemory = Record.Payload.GetMemory();
+   
+		if (FJsonObjectConverter::UStructToJsonObjectString(ScriptStruct, StructMemory, JsonOutput, 0, 0))
+		{
+			// 1. Remove formatting whitespace to keep the cell compact
+			JsonOutput = JsonOutput.Replace(TEXT("\n"), TEXT("")).Replace(TEXT("\r"), TEXT("")).TrimStartAndEnd();
+       
+			// 2. Escape existing double quotes by doubling them (" -> "")
+			// This prevents the CSV parser from thinking the cell ended early.
+			JsonOutput = JsonOutput.Replace(TEXT("\""), TEXT("\"\""));
+		}
+	}
+
+	// 3. Wrap the escaped JsonOutput in " quotes within the Printf
+	// Notice the \"%s\" for the payload column
+	FString CSVLine = FString::Printf(TEXT("%s,%d,ACTION,%.2f,%s,\"%s\",,,,%d\n"),
 		*SessionID, 
 		CurrentRunNumber + 1, 
 		Record.Timestamp, 
 		*Record.ActionTag.ToString(),
+		*JsonOutput, // This is now safe inside the double quotes
 		Config->bIsControlGroup ? 1 : 0);
 
 	SaveCSVLineInternalAsync(CurrentSessionFile, CSVLine);
@@ -45,7 +75,7 @@ void UDRLTelemetryProvider::LogSummaryAsync(const UDRLWorldStateConfig* Config, 
 	
 	CurrentRunNumber++;
 
-	FString SummaryLine = FString::Printf(TEXT("%s,%d,SUMMARY,,,%.4f,%.2f,%d,\"%s\"\n"),
+	FString SummaryLine = FString::Printf(TEXT("%s,%d,SUMMARY,,,,%.4f,%.2f,%d,\"%s\"\n"),
 		*SessionID, 
 		CurrentRunNumber, 
 		Metrics.ActionEntropy, 
@@ -68,7 +98,7 @@ void UDRLTelemetryProvider::SaveCSVLineInternalAsync(const FString& FilePath, co
 				{
 					// The "Master Header" - highly extendable! 
 					// If you add "Damage" later, just add ",Damage" to the end here and in the Printfs above.
-					FString Header = TEXT("SessionID,RunNumber,EntryType,Timestamp,ActionTag,Intensity,Entropy,Duration,IsControl,WorldState\n");
+					FString Header = TEXT("SessionID,RunNumber,EntryType,Timestamp,ActionTag,Payload,Entropy,Duration,IsControl,WorldState\n");
 					FinalOutput = Header + Line;
 				}
 
