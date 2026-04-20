@@ -6,7 +6,7 @@
 #include "DRLTypes.generated.h"
 
 USTRUCT(BlueprintType)
-struct FBaseActionPayload
+struct DYNAMICRESPONSELOOP_API FBaseActionPayload
 {
 	GENERATED_BODY()
 	virtual ~FBaseActionPayload() {}
@@ -30,7 +30,7 @@ struct DYNAMICRESPONSELOOP_API FActionRecord
 };
 
 USTRUCT(BlueprintType)
-struct FDamageReceivedPayload : public FBaseActionPayload // Inherits from your base payload
+struct DYNAMICRESPONSELOOP_API FDamageReceivedPayload : public FBaseActionPayload // Inherits from your base payload
 {
 	GENERATED_BODY()
 

@@ -10,8 +10,9 @@
 #include "UDRLWorldStateConfig.h"
 #include "DRLWorldStateSubsystem.generated.h"
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionLoggedSignature, FActionRecord, LoggedRecord);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionLoggedSignature, const FActionRecord&, LoggedRecord);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWorldStateUpdatedSignature, const FGameplayTagContainer&, ActiveWorldState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMetricsCalculated, const FRunMetrics&, Metrics, FGameplayTagContainer, FinalState);
 
 /**
  * 
@@ -59,6 +60,9 @@ public:
 	
 	UPROPERTY(BlueprintAssignable, Category = "DRL|Events")
 	FOnWorldStateUpdatedSignature OnWorldStateUpdated;
+	
+	UPROPERTY(BlueprintAssignable, Category = "DRL|Events")
+	FOnMetricsCalculated OnMetricsCalculated;
 
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DRL|State")

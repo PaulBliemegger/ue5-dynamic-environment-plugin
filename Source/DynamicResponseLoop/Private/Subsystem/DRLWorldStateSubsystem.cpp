@@ -3,7 +3,6 @@
 
 #include "Subsystem/DRLWorldStateSubsystem.h"
 #include "Metrics/DRLMetricsAnalyzer.h"
-#include "Metrics/DRLTelemetryProvider.h"
 #include "Evaluators/DRLWorldStateEvaluator.h"
 #include "Engine/World.h"
 
@@ -13,70 +12,77 @@ void UDRLWorldStateSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
 	// Create the provider once. It lives as long as the Subsystem.
-	TelemetryProvider = NewObject<UDRLTelemetryProvider>(this);
+	//TelemetryProvider = NewObject<UDRLTelemetryProvider>(this);
+	UE_LOG(LogDRLSubsystem, Log, TEXT("Initialized"));
 }
 
 void UDRLWorldStateSubsystem::SetActiveConfig(UDRLWorldStateConfig* NewConfig)
 {
 	if (ActiveConfig == NewConfig) return;
-	
+
 	ActiveConfig = NewConfig;
-	if (ActiveConfig)
+	if (!ActiveConfig)
 	{
-		CurrentWorldState = ActiveConfig->DefaultWorldState;
-        
-		// Instantiate evaluators from the provided subclasses
-		InstancedEvaluators.Empty();
-		for (TSubclassOf<UDRLWorldStateEvaluator> EvalClass : ActiveConfig->Evaluators)
-		{
-			if (EvalClass)
-			{
-				UDRLWorldStateEvaluator* NewEval = NewObject<UDRLWorldStateEvaluator>(this, EvalClass);
-				InstancedEvaluators.Add(NewEval);
-			}
-		}
-		
-		if (ActiveConfig->bEnableTelemetry)
-		{
-			TelemetryProvider->InitializeSession(ActiveConfig);
-			if (ActiveConfig->AnalyzerClass->IsValidLowLevel())
-			{
-				TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
-				ClassToUse = ActiveConfig->AnalyzerClass;
-				CachedAnalyzer = NewObject<UDRLMetricsAnalyzer>(this, ClassToUse);
-			}
-		}
-		
+		UE_LOG(LogDRLSubsystem, Warning, TEXT("Tried setting invalid active config."));
+		return;
 	}
+	
+	CurrentWorldState = ActiveConfig->DefaultWorldState;
+
+	// Instantiate evaluators from the provided subclasses
+	InstancedEvaluators.Empty();
+	for (TSubclassOf<UDRLWorldStateEvaluator> EvalClass : ActiveConfig->Evaluators)
+	{
+		if (EvalClass)
+		{
+			UDRLWorldStateEvaluator* NewEval = NewObject<UDRLWorldStateEvaluator>(this, EvalClass);
+			InstancedEvaluators.Add(NewEval);
+		}
+	}
+
 	UE_LOG(LogDRLSubsystem, Log, TEXT("Active Config Set - %s"), *GetNameSafe(ActiveConfig));
+	
+	if (!ActiveConfig->bEnableTelemetry)
+	{
+		UE_LOG(LogDRLSubsystem, Log, TEXT("Telemetry disabled."));
+		return;
+	}
+
+	if (ActiveConfig->AnalyzerClass->IsValidLowLevel())
+	{
+		TSubclassOf<UDRLMetricsAnalyzer> ClassToUse = UDRLMetricsAnalyzer::StaticClass();
+		ClassToUse = ActiveConfig->AnalyzerClass;
+		CachedAnalyzer = NewObject<UDRLMetricsAnalyzer>(this, ClassToUse);
+	}
 }
 
 void UDRLWorldStateSubsystem::Internal_LogAction(FGameplayTag ActionTag, const FInstancedStruct& Payload)
 {
-	if (!ActionTag.IsValid()) 
+	if (!ActiveConfig) return;
+
+	if (!ActionTag.IsValid())
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[DRL SubSystem]: Attempted to log an invalid ActionTag."));
+		UE_LOG(LogDRLSubsystem, Warning, TEXT("Attempted to log an invalid ActionTag."));
 		return;
 	}
-	
+
 	FActionRecord Record;
 	Record.ActionTag = ActionTag;
 	Record.Timestamp = GetWorld() ? GetWorld()->GetTimeSeconds() : 0.f;
 	Record.Payload = Payload;
-	
+
 	CurrentRunHistory.Add(Record);
-	
-	UE_LOG(LogDRLSubsystem, Log, TEXT("Time: [%.2fs] | Action: %-30s | Payload: %s"), 
-	Record.Timestamp, 
-	*ActionTag.ToString(), 
-	*GetPayloadAsString(Payload));
-	
+
+	UE_LOG(LogDRLSubsystem, Log, TEXT("Time: [%.2fs] | Action: %-30s | Payload: %s"),
+	       Record.Timestamp,
+	       *ActionTag.ToString(),
+	       *GetPayloadAsString(Payload));
 	
 	if (ActiveConfig->bEnableTelemetry && ActiveConfig->bEnableLiveHeartbeat)
 	{
-		TelemetryProvider->LogActionAsync(ActiveConfig, Record);
+		//TelemetryProvider->LogActionAsync(ActiveConfig, Record);
 	}
-	
+
 	OnActionLogged.Broadcast(Record);
 }
 
@@ -109,29 +115,29 @@ void UDRLWorldStateSubsystem::UpdateWorldState()
 			NewState = Evaluator->Evaluate(CurrentRunHistory, NewState);
 		}
 	}
-	
+
 	if (ActiveConfig->bEnableTelemetry)
 	{
-		
 		if (!ActiveConfig->bEnableLiveHeartbeat)
 		{
 			for (const FActionRecord& Record : CurrentRunHistory)
 			{
-				TelemetryProvider->LogActionAsync(ActiveConfig, Record);
+				//TelemetryProvider->LogActionAsync(ActiveConfig, Record);
 			}
 		}
-        
+
 		if (CachedAnalyzer)
 		{
 			FRunMetrics Metrics = CachedAnalyzer->CalculateRunMetrics(CurrentRunHistory, CurrentWorldState);
-			TelemetryProvider->LogSummaryAsync(ActiveConfig, Metrics, CurrentWorldState);
+			OnMetricsCalculated.Broadcast(Metrics, NewState);
+			//TelemetryProvider->LogSummaryAsync(ActiveConfig, Metrics, CurrentWorldState);
 		}
 	}
-	
+
 	CurrentWorldState = NewState;
 	UE_LOG(LogDRLSubsystem, Log, TEXT("World State Updated - %s"), *CurrentWorldState.ToString());
 	CurrentRunHistory.Empty();
-	
+
 	if (!ActiveConfig->bIsControlGroup)
 	{
 		OnWorldStateUpdated.Broadcast(CurrentWorldState);
