@@ -19,5 +19,5 @@ class DYNAMICRESPONSELOOP_API UDRLWorldStateEvaluator : public UObject
 public:
 	// Takes the run history and modifies the World State appropriately
 	UFUNCTION(BlueprintNativeEvent, Category = "DRL|Evaluation")
-	FGameplayTagContainer Evaluate(const TArray<FActionRecord>& History, const FGameplayTagContainer& InWorldState);
+	void Evaluate(const TArray<FActionRecord>& History, TArray<FDRLContext>& InWorldContext, FGameplayTagContainer& InWorldState);
 };

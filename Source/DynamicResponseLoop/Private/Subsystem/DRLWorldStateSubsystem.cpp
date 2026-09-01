@@ -108,11 +108,12 @@ void UDRLWorldStateSubsystem::UpdateWorldState()
 {
 	if (!ActiveConfig) return;
 	FGameplayTagContainer NewState = CurrentWorldState;
+	TArray<FDRLContext> NewContext = CurrentWorldContext;
 	for (UDRLWorldStateEvaluator* Evaluator : InstancedEvaluators)
 	{
 		if (Evaluator)
 		{
-			NewState = Evaluator->Evaluate(CurrentRunHistory, NewState);
+			Evaluator->Evaluate(CurrentRunHistory, NewContext, NewState);
 		}
 	}
 
@@ -134,12 +135,17 @@ void UDRLWorldStateSubsystem::UpdateWorldState()
 		}
 	}
 
+	OnWorldStateUpdated.Broadcast(CurrentWorldState, NewState);
+
 	CurrentWorldState = NewState;
+	CurrentWorldContext = NewContext;
 	UE_LOG(LogDRLSubsystem, Log, TEXT("World State Updated - %s"), *CurrentWorldState.ToString());
 	CurrentRunHistory.Empty();
+}
 
-	if (!ActiveConfig->bIsControlGroup)
-	{
-		OnWorldStateUpdated.Broadcast(CurrentWorldState);
-	}
+void UDRLWorldStateSubsystem::ResetWorldState()
+{
+	CurrentRunHistory.Empty();
+	CurrentWorldState = FGameplayTagContainer();
+	CurrentWorldContext.Empty();
 }

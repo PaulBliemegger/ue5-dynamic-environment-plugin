@@ -3,7 +3,8 @@
 
 #include "Evaluators/DRLWorldStateEvaluator.h"
 
-FGameplayTagContainer UDRLWorldStateEvaluator::Evaluate_Implementation(const TArray<FActionRecord>& History, const FGameplayTagContainer& InWorldState)
+void UDRLWorldStateEvaluator::Evaluate_Implementation(const TArray<FActionRecord>& History,
+	TArray<FDRLContext>& InWorldContext, FGameplayTagContainer& InWorldState)
 {
-	return InWorldState; 
+
 }

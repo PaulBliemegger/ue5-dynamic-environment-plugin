@@ -6,14 +6,6 @@
 #include "DRLTypes.generated.h"
 
 USTRUCT(BlueprintType)
-struct DYNAMICRESPONSELOOP_API FBaseActionPayload
-{
-	GENERATED_BODY()
-	virtual ~FBaseActionPayload() {}
-};
-
-
-USTRUCT(BlueprintType)
 struct DYNAMICRESPONSELOOP_API FActionRecord
 {
 	GENERATED_BODY()
@@ -30,16 +22,37 @@ struct DYNAMICRESPONSELOOP_API FActionRecord
 };
 
 USTRUCT(BlueprintType)
-struct DYNAMICRESPONSELOOP_API FDamageReceivedPayload : public FBaseActionPayload // Inherits from your base payload
+struct DYNAMICRESPONSELOOP_API FBaseActionPayload
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(BlueprintType)
+struct DYNAMICRESPONSELOOP_API FDRLContext
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
-	float DamageAmount = 0.f;
-
-	UPROPERTY()
-	FGameplayTag DamageInstigatorTag; 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DRL|Context")
+	FGameplayTag ContextTag;
 	
-	UPROPERTY()
-	FGameplayTag DamageReceiverTag; 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta=(BaseStruct="/Script/YourModule.FContextPayload"))
+	FInstancedStruct Payload;
+};
+
+USTRUCT(BlueprintType)
+struct DYNAMICRESPONSELOOP_API FDRLContextPayload
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(BlueprintType)
+struct FEvaluatorOutput
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DRL")
+	FGameplayTagContainer NewWorldState;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DRL")
+	TArray<FDRLContext> NewWorldContext;
 };

@@ -11,7 +11,7 @@
 #include "DRLWorldStateSubsystem.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnActionLoggedSignature, const FActionRecord&, LoggedRecord);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWorldStateUpdatedSignature, const FGameplayTagContainer&, ActiveWorldState);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWorldStateUpdatedSignature, const FGameplayTagContainer&, PreviousWorldState, const FGameplayTagContainer&, NewWorldState);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnMetricsCalculated, const FRunMetrics&, Metrics, FGameplayTagContainer, FinalState);
 
 /**
@@ -30,13 +30,14 @@ public:
 	template<typename T>
 	void LogAction(FGameplayTag ActionTag, const T& PayloadData)
 	{
+		static_assert(TIsDerivedFrom<T, FBaseActionPayload>::IsDerived, "Payload must derive from FActionPayloadBase");
 		FInstancedStruct Payload;
 		Payload.InitializeAs<T>(PayloadData);
 		Internal_LogAction(ActionTag, Payload);
 	}
 	
 	/** Blueprint-compatible version */
-	UFUNCTION(BlueprintCallable, Category = "DRL | Logging", meta = (DisplayName = "Log Action (Payload)"))
+	UFUNCTION(BlueprintCallable, Category = "DRL | Logging", meta = (DisplayName = "Log Action", AutoCreateRefTerm = "Payload", BaseStruct = "BaseActionPayload", HideBaseStruct))
 	void LogActionBP(FGameplayTag ActionTag, const FInstancedStruct& Payload) 
 	{ 
 		Internal_LogAction(ActionTag, Payload); 
@@ -45,15 +46,24 @@ public:
 	// Step 2 & 3: Triggered when returning to the Hub area
 	UFUNCTION(BlueprintCallable, Category = "DRL|Brain")
 	void UpdateWorldState();
+	
+	UFUNCTION(BlueprintCallable, Category = "DRL|Brain")
+	void ResetWorldState();
 
 	UFUNCTION(BlueprintCallable, Category = "DRL|Config")
 	void SetActiveConfig(UDRLWorldStateConfig* NewConfig);
+	
+	UFUNCTION(BlueprintCallable, Category = "DRL|Config")
+	bool HasValidConfig() {return ActiveConfig->IsValidLowLevel(); }
 	
 	UFUNCTION(BlueprintCallable, Category = "DRL|State")
 	FGameplayTagContainer GetCurrentWorldState() const { return CurrentWorldState; }
 	
 	UFUNCTION(BlueprintCallable, Category = "DRL|Observer")
 	TArray<FActionRecord> GetCurrentRunHistory() const { return CurrentRunHistory; }
+	
+	UFUNCTION(BlueprintCallable, Category = "DRL|Context")
+	TArray<FDRLContext> GetCurrentWorldContext() const { return CurrentWorldContext; }
 	
 	UPROPERTY(BlueprintAssignable, Category = "DRL|Events")
 	FOnActionLoggedSignature OnActionLogged;
@@ -70,6 +80,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DRL|State")
 	FGameplayTagContainer CurrentWorldState;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "DRL|State")
+	TArray<FDRLContext> CurrentWorldContext;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UDRLWorldStateConfig> ActiveConfig;
